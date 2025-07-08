@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recibo Pagado</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .recibo-details { border: 1px solid #ccc; padding: 20px; margin-top: 20px; }
+        .recibo-details p { margin: 5px 0; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Detalles del Recibo Pagado</h1>
+
+    <div id="reciboDetails" class="recibo-details">
+        <p><strong>ID Recibo:</strong> <span id="displayIdRecibo"></span></p>
+        <p><strong>Número de Cuenta:</strong> <span id="displayNumeroCuenta"></span></p>
+        <p><strong>Monto Pagado:</strong> $<span id="displayMonto"></span></p>
+        <p><strong>Fecha de Emisión:</strong> <span id="displayFecha"></span></p>
+        <p><strong>Estado:</strong> <span id="displayEstado" class="success"></span></p>
+    </div>
+
+    <p id="message" class="error"></p>
+    <button onclick="window.location.href='consulta.html'">Volver a Consultar</button>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:3000');
+        let idReciboToView = null;
+
+        ws.onopen = () => {
+            console.log('Conexión WebSocket abierta para recibo.html');
+            const urlParams = new URLSearchParams(window.location.search);
+            idReciboToView = urlParams.get('idRecibo');
+
+            if (idReciboToView) {
+                ws.send(JSON.stringify({
+                    type: 'visualizarRecibo',
+                    idRecibo: parseInt(idReciboToView)
+                }));
+            } else {
+                document.getElementById('message').textContent = 'No se proporcionó un ID de recibo para visualizar.';
+            }
+        };
+
+        ws.onmessage = event => {
+            const data = JSON.parse(event.data);
+            const messageElement = document.getElementById('message');
+            messageElement.textContent = ''; // Limpiar mensajes
+
+            if (data.type === 'reciboPagadoDetalles') {
+                const recibo = data.payload;
+                document.getElementById('displayIdRecibo').textContent = recibo.idRecibo;
+                document.getElementById('displayNumeroCuenta').textContent = recibo.numeroCuenta;
+                document.getElementById('displayMonto').textContent = recibo.monto;
+                document.getElementById('displayFecha').textContent = new Date(recibo.fecha).toLocaleDateString();
+                document.getElementById('displayEstado').textContent = recibo.estado.toUpperCase();
+            } else if (data.type === 'error') {
+                messageElement.textContent = `Error: ${data.payload}`;
+                document.getElementById('reciboDetails').style.display = 'none'; // Ocultar si hay error
+            }
+        };
+
+        ws.onclose = () => {
+            console.log('Conexión WebSocket cerrada para recibo.html');
+        };
+
+        ws.onerror = error => {
+            console.error('Error en WebSocket:', error);
+            document.getElementById('message').textContent = 'Error de conexión con el servidor.';
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pagar Recibo Eléctrico</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 8px; margin-top: 10px; }
+        .message { margin-top: 15px; padding: 10px; border-radius: 5px; }
+        .error { background-color: #fdd; border: 1px solid #f00; color: #f00; }
+        .success { background-color: #dfd; border: 1px solid #0f0; color: #0f0; }
+    </style>
+</head>
+<body>
+    <h1>Pagar Recibo Eléctrico</h1>
+
+    <div id="payment-details">
+        <p>ID de Recibo: <span id="displayIdRecibo"></span></p>
+        <p>Número de Cuenta: <span id="displayNumeroCuenta"></span></p>
+        <p>Monto: $<span id="displayMonto"></span></p>
+        <button onclick="confirmarPago()">Confirmar Pago</button>
+        <button onclick="window.history.back()">Volver</button>
+    </div>
+
+    <div id="responseMessage" class="message"></div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:3000');
+        let idReciboToPay = null;
+        let numeroCuentaToPay = null;
+        let montoToPay = null; // Necesitaríamos obtener el monto del servidor o de la URL si se pasa
+
+        ws.onopen = () => {
+            console.log('Conexión WebSocket abierta');
+            // Obtener parámetros de la URL
+            const urlParams = new URLSearchParams(window.location.search);
+            idReciboToPay = urlParams.get('idRecibo');
+            numeroCuentaToPay = urlParams.get('numeroCuenta');
+
+            document.getElementById('displayIdRecibo').textContent = idReciboToPay;
+            document.getElementById('displayNumeroCuenta').textContent = numeroCuentaToPay;
+
+            // Para mostrar el monto, idealmente lo pedimos al servidor para asegurar que es el correcto
+            // Por simplicidad para la hora, puedes añadirlo como parámetro en la URL desde consulta.html
+            // o hacer una llamada WebSocket aquí para obtener los detalles del recibo.
+            // Por ahora, lo dejamos en blanco o ponemos un placeholder.
+            document.getElementById('displayMonto').textContent = 'Cargando...';
+
+            // Si se necesitara el monto en esta página, tendríamos que enviar un mensaje WebSocket para obtenerlo:
+            if (idReciboToPay) {
+                ws.send(JSON.stringify({ type: 'getReciboDetails', idRecibo: parseInt(idReciboToPay) }));
+            }
+        };
+
+        ws.onmessage = event => {
+            const data = JSON.parse(event.data);
+            const responseMessageElement = document.getElementById('responseMessage');
+            responseMessageElement.className = 'message'; // Reset classes
+
+            if (data.type === 'pagoExitoso') {
+                responseMessageElement.classList.add('success');
+                responseMessageElement.textContent = `¡Pago exitoso! Recibo ${data.payload.idRecibo} de la cuenta ${data.payload.numeroCuenta} por $${data.payload.monto} ha sido pagado. Redirigiendo a recibo...`;
+                setTimeout(() => {
+                    window.location.href = `recibo.html?idRecibo=${data.payload.idRecibo}`;
+                }, 3000);
+            } else if (data.type === 'error') {
+                responseMessageElement.classList.add('error');
+                responseMessageElement.textContent = `Error en el pago: ${data.payload}`;
+            } else if (data.type === 'reciboDetails') { // Si implementas el 'getReciboDetails' en el backend
+                montoToPay = data.payload.monto;
+                document.getElementById('displayMonto').textContent = montoToPay;
+            }
+        };
+
+        ws.onclose = () => {
+            console.log('Conexión WebSocket cerrada');
+        };
+
+        ws.onerror = error => {
+            console.error('Error en WebSocket:', error);
+            document.getElementById('responseMessage').classList.add('error');
+            document.getElementById('responseMessage').textContent = 'Error de conexión con el servidor.';
+        };
+
+        function confirmarPago() {
+            if (idReciboToPay && numeroCuentaToPay) {
+                ws.send(JSON.stringify({
+                    type: 'pagarRecibo',
+                    idRecibo: parseInt(idReciboToPay),
+                    numeroCuenta: numeroCuentaToPay // Esto es solo para referencia en el frontend, el backend debe validarlo
+                }));
+            } else {
+                document.getElementById('responseMessage').classList.add('error');
+                document.getElementById('responseMessage').textContent = 'No se encontró un recibo para pagar.';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consultar Recibo Eléctrico</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        input, button { padding: 8px; margin-right: 5px; }
+        #recibos-list { margin-top: 20px; border: 1px solid #ccc; padding: 10px; }
+        .recibo-item { margin-bottom: 10px; padding: 8px; border: 1px solid #eee; }
+        .recibo-item button { margin-left: 10px; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>Consultar Recibo Eléctrico</h1>
+
+    <div>
+        <label for="numeroCuenta">Número de Cuenta:</label>
+        <input type="text" id="numeroCuenta" placeholder="Ingrese número de cuenta">
+        <button onclick="consultarRecibo()">Consultar</button>
+    </div>
+
+    <div id="recibos-list">
+        <h2>Recibos Pendientes</h2>
+        <p id="message" class="error"></p>
+        <ul id="listaRecibos">
+            </ul>
+    </div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:3000'); // Conéctate al mismo puerto que tu servidor HTTP
+
+        ws.onopen = () => {
+            console.log('Conexión WebSocket abierta');
+        };
+
+        ws.onmessage = event => {
+            const data = JSON.parse(event.data);
+            const listaRecibos = document.getElementById('listaRecibos');
+            const messageElement = document.getElementById('message');
+            messageElement.textContent = ''; // Limpiar mensajes anteriores
+            listaRecibos.innerHTML = ''; // Limpiar lista anterior
+
+            if (data.type === 'recibosPendientes') {
+                if (data.payload.length > 0) {
+                    data.payload.forEach(recibo => {
+                        const li = document.createElement('li');
+                        li.className = 'recibo-item';
+                        li.innerHTML = `
+                            ID Recibo: ${recibo.idRecibo} | Monto: $${recibo.monto} | Fecha: ${new Date(recibo.fecha).toLocaleDateString()}
+                            <button onclick="irAPagar(${recibo.idRecibo}, '${recibo.numeroCuenta}')">Pagar</button>
+                        `;
+                        listaRecibos.appendChild(li);
+                    });
+                } else {
+                    listaRecibos.innerHTML = '<li>No hay recibos pendientes para esta cuenta.</li>';
+                }
+            } else if (data.type === 'error') {
+                messageElement.textContent = `Error: ${data.payload}`;
+            }
+        };
+
+        ws.onclose = () => {
+            console.log('Conexión WebSocket cerrada');
+        };
+
+        ws.onerror = error => {
+            console.error('Error en WebSocket:', error);
+            document.getElementById('message').textContent = 'Error de conexión con el servidor.';
+        };
+
+        function consultarRecibo() {
+            const numeroCuenta = document.getElementById('numeroCuenta').value;
+            if (numeroCuenta) {
+                ws.send(JSON.stringify({
+                    type: 'consultarRecibo',
+                    numeroCuenta: numeroCuenta
+                }));
+            } else {
+                document.getElementById('message').textContent = 'Por favor, ingrese un número de cuenta.';
+            }
+        }
+
+        function irAPagar(idRecibo, numeroCuenta) {
+            // Redirigir a la página de pago con los parámetros necesarios
+            window.location.href = `pago.html?idRecibo=${idRecibo}&numeroCuenta=${numeroCuenta}`;
+        }
+    </script>
+</body>
+</html>
